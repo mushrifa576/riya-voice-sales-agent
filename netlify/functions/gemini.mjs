@@ -15,11 +15,13 @@ const json = (body, status = 200) =>
 
 const endpoint = (model) => `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 
-function originAllowed(origin, siteUrl) {
+function originAllowed(origin, siteUrl, reqUrl) {
   if (!origin) return true; // same-origin requests from some browsers omit it
   let host;
   try { host = new URL(origin).hostname; } catch { return false; }
   if (host === "localhost" || host === "127.0.0.1") return true;
+  // Same-origin: the page is served from the same host as this function (works on the main URL, deploy previews and custom domains).
+  try { if (host === new URL(reqUrl).hostname) return true; } catch {}
   const allowed = [siteUrl, process.env.URL, process.env.DEPLOY_URL, process.env.DEPLOY_PRIME_URL,
     ...(process.env.ALLOWED_ORIGINS || "").split(",")]
     .map((u) => { try { return new URL(u.trim()).hostname; } catch { return ""; } })
@@ -29,7 +31,7 @@ function originAllowed(origin, siteUrl) {
 
 export default async (req, context) => {
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
-  if (!originAllowed(req.headers.get("origin"), context?.site?.url)) return json({ error: "origin_not_allowed" }, 403);
+  if (!originAllowed(req.headers.get("origin"), context?.site?.url, req.url)) return json({ error: "origin_not_allowed" }, 403);
 
   const raw = await req.text();
   if (raw.length > MAX_BYTES) return json({ error: "too_large" }, 413);
